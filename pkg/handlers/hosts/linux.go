@@ -13,11 +13,19 @@ import (
 	"go.xbrother.com/nix-operator/pkg/utils"
 )
 
+func init() {
+	controller.RegisterHandler("hosts", &LinuxHostsHandler{})
+}
+
 type LinuxHostsHandler struct{}
 
 type hostEntry struct {
 	IP        string
 	Hostnames []string
+}
+
+func (h *LinuxHostsHandler) Match(osInfo controller.OSInfo) bool {
+	return osInfo.KernelName == "Linux"
 }
 
 func (h *LinuxHostsHandler) Reconcile(ctx context.Context, cfg *config.SystemConfiguration) error {
@@ -128,18 +136,4 @@ func (h *LinuxHostsHandler) areHostsEqual(current, desired []hostEntry) bool {
 	}
 
 	return true
-}
-
-type LinuxHostsFactory struct{}
-
-func (f *LinuxHostsFactory) Create() controller.Handler {
-	return &LinuxHostsHandler{}
-}
-
-func (f *LinuxHostsFactory) Match(osInfo controller.OSInfo) bool {
-	return osInfo.KernelName == "Linux"
-}
-
-func init() {
-	controller.RegisterHandler("hosts", &LinuxHostsFactory{})
 }
