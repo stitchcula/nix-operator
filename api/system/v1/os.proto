@@ -1,0 +1,336 @@
+package xtopus.api.system.v1
+
+option go_package = "go.xbrother.com/nix-operator/api/system/v1"
+
+import "google/protobuf/timestamp.proto"
+
+// 操作系统配置服务
+service OSConfigService {
+  // 获取网络配置
+  rpc GetNetworkConfig(GetNetworkConfigRequest) returns (NetworkConfigResponse)
+  // 更新网络配置
+  rpc UpdateNetworkConfig(UpdateNetworkConfigRequest) returns (UpdateNetworkConfigResponse)
+  
+  // 获取 DNS 配置
+  rpc GetDNSConfig(GetDNSConfigRequest) returns (DNSConfigResponse)
+  // 更新 DNS 配置
+  rpc UpdateDNSConfig(UpdateDNSConfigRequest) returns (UpdateDNSConfigResponse)
+  
+  // 获取 Hosts 配置
+  rpc GetHostsConfig(GetHostsConfigRequest) returns (HostsConfigResponse)
+  // 更新 Hosts 配置
+  rpc UpdateHostsConfig(UpdateHostsConfigRequest) returns (UpdateHostsConfigResponse)
+  
+  // 获取时间配置
+  rpc GetTimeConfig(GetTimeConfigRequest) returns (TimeConfigResponse)
+  // 更新时间配置
+  rpc UpdateTimeConfig(UpdateTimeConfigRequest) returns (UpdateTimeConfigResponse)
+  
+  // 获取防火墙配置
+  rpc GetFirewallConfig(GetFirewallConfigRequest) returns (FirewallConfigResponse)
+  // 更新防火墙配置
+  rpc UpdateFirewallConfig(UpdateFirewallConfigRequest) returns (UpdateFirewallConfigResponse)
+}
+
+// ========== 网络配置相关 ==========
+
+message GetNetworkConfigRequest {
+  // 节点选择器，可选
+  NodeSelector node_selector = 1
+}
+
+message NetworkConfigResponse {
+  repeated NetworkInterface interfaces = 1
+  ResponseStatus status = 2
+}
+
+message UpdateNetworkConfigRequest {
+  repeated NetworkInterface interfaces = 1
+}
+
+message UpdateNetworkConfigResponse {
+  ResponseStatus status = 1
+}
+
+// 网络接口配置
+message NetworkInterface {
+  // 节点选择器
+  NodeSelector node_selector = 1
+  
+  // 接口名称，如 eth0, ens33
+  string name = 2
+  
+  // IPv4 配置
+  IPv4Config ipv4 = 3
+  
+  // IPv6 配置
+  IPv6Config ipv6 = 4
+  
+  // MTU 大小
+  int32 mtu = 5
+  
+  // MAC 地址
+  string mac_address = 6
+  
+  // 接口状态
+  InterfaceStatus status = 7
+}
+
+// IPv4 配置
+message IPv4Config {
+  // IP 地址和子网掩码，如 192.168.1.100/24
+  string address = 1
+  
+  // 网关地址
+  string gateway = 2
+  
+  // 是否启用 DHCP
+  bool dhcp_enabled = 3
+}
+
+// IPv6 配置
+message IPv6Config {
+  // IPv6 地址和前缀长度，如 2001:db8::1/64
+  string address = 1
+  
+  // IPv6 网关
+  string gateway = 2
+  
+  // 是否启用 SLAAC
+  bool slaac_enabled = 3
+}
+
+// 接口状态
+enum InterfaceStatus {
+  INTERFACE_STATUS_UNSPECIFIED = 0
+  INTERFACE_STATUS_UP = 1
+  INTERFACE_STATUS_DOWN = 2
+  INTERFACE_STATUS_UNKNOWN = 3
+}
+
+// 节点选择器
+message NodeSelector {
+  // 主机名匹配
+  string hostname = 1
+  
+  // MAC 地址匹配
+  string mac_address = 2
+  
+  // 标签选择器
+  map<string, string> labels = 3
+}
+
+// ========== DNS 配置相关 ==========
+
+message GetDNSConfigRequest {}
+
+message DNSConfigResponse {
+  DNSConfig config = 1
+  ResponseStatus status = 2
+}
+
+message UpdateDNSConfigRequest {
+  DNSConfig config = 1
+}
+
+message UpdateDNSConfigResponse {
+  ResponseStatus status = 1
+}
+
+// DNS 配置
+message DNSConfig {
+  // DNS 服务器列表
+  repeated string nameservers = 1
+  
+  // 搜索域
+  repeated string search_domains = 2
+  
+  // DNS 选项
+  map<string, string> options = 3
+}
+
+// ========== Hosts 配置相关 ==========
+
+message GetHostsConfigRequest {}
+
+message HostsConfigResponse {
+  HostsConfig config = 1
+  ResponseStatus status = 2
+}
+
+message UpdateHostsConfigRequest {
+  HostsConfig config = 1
+}
+
+message UpdateHostsConfigResponse {
+  ResponseStatus status = 1
+}
+
+// Hosts 配置
+message HostsConfig {
+  repeated HostEntry entries = 1
+}
+
+// Host 条目
+message HostEntry {
+  // IP 地址
+  string ip_address = 1
+  
+  // 主机名列表
+  repeated string hostnames = 2
+  
+  // 注释
+  string comment = 3
+}
+
+// ========== 时间配置相关 ==========
+
+message GetTimeConfigRequest {}
+
+message TimeConfigResponse {
+  TimeConfig config = 1
+  ResponseStatus status = 2
+}
+
+message UpdateTimeConfigRequest {
+  TimeConfig config = 1
+}
+
+message UpdateTimeConfigResponse {
+  ResponseStatus status = 1
+}
+
+// 时间配置
+message TimeConfig {
+  // 时区设置
+  string timezone = 1
+  
+  // NTP 配置
+  NTPConfig ntp = 2
+  
+  // 当前系统时间
+  google.protobuf.Timestamp current_time = 3
+  
+  // 是否启用硬件时钟同步
+  bool hardware_clock_sync = 4
+}
+
+// NTP 配置
+message NTPConfig {
+  // 是否启用 NTP
+  bool enabled = 1
+  
+  // NTP 服务器列表
+  repeated string servers = 2
+  
+  // 同步间隔（秒）
+  int32 sync_interval = 3
+  
+  // NTP 状态
+  NTPStatus status = 4
+}
+
+// NTP 状态
+enum NTPStatus {
+  NTP_STATUS_UNSPECIFIED = 0
+  NTP_STATUS_SYNCHRONIZED = 1
+  NTP_STATUS_UNSYNCHRONIZED = 2
+  NTP_STATUS_ERROR = 3
+}
+
+// ========== 防火墙配置相关 ==========
+
+message GetFirewallConfigRequest {}
+
+message FirewallConfigResponse {
+  FirewallConfig config = 1
+  ResponseStatus status = 2
+}
+
+message UpdateFirewallConfigRequest {
+  FirewallConfig config = 1
+}
+
+message UpdateFirewallConfigResponse {
+  ResponseStatus status = 1
+}
+
+// 防火墙配置
+message FirewallConfig {
+  // 防火墙规则
+  repeated FirewallRule rules = 1
+  
+  // 默认策略
+  FirewallPolicy default_policy = 2
+  
+  // 是否启用防火墙
+  bool enabled = 3
+}
+
+// 防火墙规则
+message FirewallRule {
+  // 规则名称
+  string name = 1
+  
+  // 端口号或端口范围
+  string port = 2
+  
+  // 协议类型
+  Protocol protocol = 3
+  
+  // 动作
+  Action action = 4
+  
+  // 源 IP 地址
+  string source_ip = 5
+  
+  // 目标 IP 地址
+  string destination_ip = 6
+  
+  // 规则描述
+  string description = 7
+}
+
+// 协议类型
+enum Protocol {
+  PROTOCOL_UNSPECIFIED = 0
+  PROTOCOL_TCP = 1
+  PROTOCOL_UDP = 2
+  PROTOCOL_ICMP = 3
+  PROTOCOL_ALL = 4
+}
+
+// 防火墙动作
+enum Action {
+  ACTION_UNSPECIFIED = 0
+  ACTION_ALLOW = 1
+  ACTION_DENY = 2
+  ACTION_DROP = 3
+}
+
+// 防火墙策略
+enum FirewallPolicy {
+  FIREWALL_POLICY_UNSPECIFIED = 0
+  FIREWALL_POLICY_ACCEPT = 1
+  FIREWALL_POLICY_DROP = 2
+  FIREWALL_POLICY_REJECT = 3
+}
+
+// ========== 通用响应 ==========
+
+// 响应状态
+message ResponseStatus {
+  // 状态码
+  int32 code = 1
+  
+  // 状态消息
+  string message = 2
+  
+  // 详细信息
+  map<string, string> details = 3
+  
+  // 时间戳
+  google.protobuf.Timestamp timestamp = 4
+}
+
+

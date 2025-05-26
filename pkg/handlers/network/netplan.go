@@ -37,17 +37,17 @@ func (np *Netplan) findConfig(iface config.Interface) (string, error) {
 			continue
 		}
 
-		var config map[string]interface{}
+		var config map[string]any
 		if err := yaml.Unmarshal(data, &config); err != nil {
 			continue
 		}
 
-		network, ok := config["network"].(map[string]interface{})
+		network, ok := config["network"].(map[string]any)
 		if !ok {
 			continue
 		}
 
-		ethernets, ok := network["ethernets"].(map[string]interface{})
+		ethernets, ok := network["ethernets"].(map[string]any)
 		if !ok {
 			continue
 		}
@@ -66,7 +66,7 @@ func (np *Netplan) Configure(ctx context.Context, iface config.Interface) error 
 		return err
 	}
 
-	ifaceConfig := map[string]interface{}{
+	ifaceConfig := map[string]any{
 		"mtu": iface.MTU,
 	}
 
@@ -88,17 +88,17 @@ func (np *Netplan) Configure(ctx context.Context, iface config.Interface) error 
 		}
 	}
 
-	desired := map[string]interface{}{
-		"network": map[string]interface{}{
+	desired := map[string]any{
+		"network": map[string]any{
 			"version": 2,
-			"ethernets": map[string]interface{}{
+			"ethernets": map[string]any{
 				iface.Name: ifaceConfig,
 			},
 		},
 	}
 
 	// 读取现有配置
-	var current map[string]interface{}
+	var current map[string]any
 	if data, err := os.ReadFile(configPath); err == nil {
 		if err := yaml.Unmarshal(data, &current); err == nil && reflect.DeepEqual(current, desired) {
 			return nil // 配置相同，无需更新

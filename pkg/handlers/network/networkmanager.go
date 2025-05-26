@@ -71,4 +71,4 @@ func (nm *NetworkManager) ReloadIfy(ctx context.Context) error {
 		return fmt.Errorf("failed to reload NetworkManager: %v, output: %s", err, output)
 	}
 	return nil
-} 
+}

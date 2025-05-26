@@ -3,6 +3,7 @@ package udev
 import (
 	"context"
 	"fmt"
+	"os"
 	"os/exec"
 	"strings"
 
@@ -11,22 +12,33 @@ import (
 	"go.xbrother.com/nix-operator/pkg/utils"
 )
 
+func init() {
+	controller.RegisterHandler("udev", &LinuxUdevHandler{})
+}
+
+func (f *LinuxUdevHandler) Match(osInfo controller.OSInfo) bool {
+	return osInfo.KernelName == "Linux"
+}
+
 type LinuxUdevHandler struct{}
 
 func (h *LinuxUdevHandler) Reconcile(ctx context.Context, cfg *config.SystemConfiguration) error {
-	var content strings.Builder
-	content.WriteString(config.CommentHeader)
+	// 生成期望的 udev 规则内容
+	desiredContent := h.generateUdevRules(cfg.Spec.Udev.Rules)
 
-	for _, rule := range cfg.Spec.Udev.Rules {
-		content.WriteString(fmt.Sprintf("SUBSYSTEM==\"%s\", ", rule.Subsystem))
-		for key, value := range rule.Attrs {
-			content.WriteString(fmt.Sprintf("ATTRS{%s}==\"%s\", ", key, value))
-		}
-		content.WriteString(fmt.Sprintf("SYMLINK+=\"%s\"\n", rule.Symlink))
+	// 读取现有的 udev 规则文件
+	currentContent, err := h.getCurrentUdevRules()
+	if err != nil {
+		return fmt.Errorf("failed to read current udev rules: %v", err)
+	}
+
+	// 比较现有配置和期望配置
+	if currentContent == desiredContent {
+		return nil // 配置一致，无需更新
 	}
 
 	// 使用工具函数原子性写入文件
-	if err := utils.AtomicWriteFile([]byte(content.String()), "/etc/udev/rules.d/99-custom.rules", 0644); err != nil {
+	if err := utils.AtomicWriteFile([]byte(desiredContent), "/etc/udev/rules.d/99-nix-operator.rules", 0644); err != nil {
 		return fmt.Errorf("failed to write udev rules: %v", err)
 	}
 
@@ -47,16 +59,28 @@ func (h *LinuxUdevHandler) Reconcile(ctx context.Context, cfg *config.SystemConf
 	return nil
 }
 
-type LinuxUdevFactory struct{}
+func (h *LinuxUdevHandler) generateUdevRules(rules []config.UdevRule) string {
+	var content strings.Builder
+	content.WriteString(config.CommentHeader)
 
-func (f *LinuxUdevFactory) Create() controller.Handler {
-	return &LinuxUdevHandler{}
+	for _, rule := range rules {
+		content.WriteString(fmt.Sprintf("SUBSYSTEM==\"%s\", ", rule.Subsystem))
+		for key, value := range rule.Attrs {
+			content.WriteString(fmt.Sprintf("ATTRS{%s}==\"%s\", ", key, value))
+		}
+		content.WriteString(fmt.Sprintf("SYMLINK+=\"%s\"\n", rule.Symlink))
+	}
+
+	return content.String()
 }
 
-func (f *LinuxUdevFactory) Match(osInfo controller.OSInfo) bool {
-	return osInfo.KernelName == "Linux"
-}
-
-func init() {
-	controller.RegisterHandler("udev", &LinuxUdevFactory{})
+func (h *LinuxUdevHandler) getCurrentUdevRules() (string, error) {
+	data, err := os.ReadFile("/etc/udev/rules.d/99-nix-operator.rules")
+	if err != nil {
+		if os.IsNotExist(err) {
+			return "", nil // 文件不存在，返回空字符串
+		}
+		return "", err
+	}
+	return string(data), nil
 }

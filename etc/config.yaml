@@ -30,7 +30,7 @@ spec:
           protocol: tcp
           action: allow
   
-  system:
+  time:
     timezone: "Asia/Shanghai"
     ntp:
       enabled: true
@@ -40,16 +40,34 @@ spec:
     
   serials:
     - device: "/dev/ttyS0"
+      displayName: "COM1"
       baudRate: 115200
       dataBits: 8
       stopBits: 1
       parity: "none"
+      mode: "rs232"
     - device: "/dev/ttyS1"
+      displayName: "COM2"
       baudRate: 9600
       dataBits: 8
       stopBits: 1
       parity: "none"
-  
+      mode: "rs485"
+      rs485:
+        enabled: true
+        rtsOnSend: true
+        rtsAfterSend: false
+        rtsDelay: 0
+        delayRTSBeforeSend: 0
+        delayRTSAfterSend: 0
+        receiveTimeout: 1000
+      transparent:
+        enabled: true
+        protocol: "tcp"
+        listenAddr: "0.0.0.0:8080"
+        bufferSize: 4096
+        timeout: 30
+      
   udev:
     rules:
       - name: "usb-serial"

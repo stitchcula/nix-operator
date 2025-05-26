@@ -45,11 +45,33 @@ type Interface struct {
 }
 
 type SerialConfig struct {
-	Device   string `yaml:"device"`
-	BaudRate int    `yaml:"baudRate"`
-	DataBits int    `yaml:"dataBits"`
-	StopBits int    `yaml:"stopBits"`
-	Parity   string `yaml:"parity"`
+	Device      string             `yaml:"device"`
+	DisplayName string             `yaml:"displayName"`
+	BaudRate    int                `yaml:"baudRate"`
+	DataBits    int                `yaml:"dataBits"`
+	StopBits    int                `yaml:"stopBits"`
+	Parity      string             `yaml:"parity"`
+	Mode        string             `yaml:"mode"`                  // "rs232" 或 "rs485"
+	RS485       *RS485Config       `yaml:"rs485,omitempty"`       // RS485 特定配置
+	Transparent *TransparentConfig `yaml:"transparent,omitempty"` // 透传配置
+}
+
+type RS485Config struct {
+	Enabled            bool `yaml:"enabled"`            // 启用 RS485 模式
+	RTSOnSend          bool `yaml:"rtsOnSend"`          // 发送时 RTS 信号状态
+	RTSAfterSend       bool `yaml:"rtsAfterSend"`       // 发送后 RTS 信号状态
+	RTSDelay           int  `yaml:"rtsDelay"`           // RTS 延迟时间（微秒）
+	DelayRTSBeforeSend int  `yaml:"delayRTSBeforeSend"` // 发送前 RTS 延迟（微秒）
+	DelayRTSAfterSend  int  `yaml:"delayRTSAfterSend"`  // 发送后 RTS 延迟（微秒）
+	ReceiveTimeout     int  `yaml:"receiveTimeout"`     // 接收超时（毫秒）
+}
+
+type TransparentConfig struct {
+	Enabled    bool   `yaml:"enabled"`    // 启用透传功能
+	Protocol   string `yaml:"protocol"`   // 透传协议 "tcp" 或 "udp"
+	ListenAddr string `yaml:"listenAddr"` // 监听地址，如 "0.0.0.0:8080"
+	BufferSize int    `yaml:"bufferSize"` // 缓冲区大小（字节）
+	Timeout    int    `yaml:"timeout"`    // 连接超时（秒）
 }
 
 type DNSConfig struct {

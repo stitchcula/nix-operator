@@ -1,0 +1,443 @@
+syntax = "proto3";
+
+package system.v1;
+
+option go_package = "go.xbrother.com/nix-operator/api/system/v1";
+
+import "google/protobuf/timestamp.proto";
+
+// 硬件配置服务
+service HardwareConfigService {
+  // 获取串口配置
+  rpc GetSerialConfig(GetSerialConfigRequest) returns (SerialConfigResponse);
+  // 更新串口配置
+  rpc UpdateSerialConfig(UpdateSerialConfigRequest) returns (UpdateSerialConfigResponse);
+  // 测试串口连接
+  rpc TestSerialConnection(TestSerialConnectionRequest) returns (TestSerialConnectionResponse);
+  
+  // 获取 Udev 配置
+  rpc GetUdevConfig(GetUdevConfigRequest) returns (UdevConfigResponse);
+  // 更新 Udev 配置
+  rpc UpdateUdevConfig(UpdateUdevConfigRequest) returns (UpdateUdevConfigResponse);
+  
+  // 扫描硬件设备
+  rpc ScanHardwareDevices(ScanHardwareDevicesRequest) returns (ScanHardwareDevicesResponse);
+  
+  // 获取串口透传状态
+  rpc GetTransparentStatus(GetTransparentStatusRequest) returns (TransparentStatusResponse);
+  // 控制串口透传
+  rpc ControlTransparent(ControlTransparentRequest) returns (ControlTransparentResponse);
+}
+
+// ========== 串口配置相关 ==========
+
+message GetSerialConfigRequest {
+  // 设备路径，可选，如果为空则返回所有串口配置
+  string device_path = 1;
+}
+
+message SerialConfigResponse {
+  repeated SerialPortConfig ports = 1;
+  ResponseStatus status = 2;
+}
+
+message UpdateSerialConfigRequest {
+  repeated SerialPortConfig ports = 1;
+}
+
+message UpdateSerialConfigResponse {
+  ResponseStatus status = 1;
+}
+
+message TestSerialConnectionRequest {
+  string device_path = 1;
+  SerialParameters parameters = 2;
+}
+
+message TestSerialConnectionResponse {
+  bool success = 1;
+  string message = 2;
+  SerialPortInfo port_info = 3;
+  ResponseStatus status = 4;
+}
+
+// 串口配置
+message SerialPortConfig {
+  // 设备路径
+  string device_path = 1;
+  
+  // 显示名称
+  string display_name = 2;
+  
+  // 串口参数
+  SerialParameters parameters = 3;
+  
+  // 串口模式
+  SerialMode mode = 4;
+  
+  // RS485 配置（当模式为 RS485 时）
+  RS485Config rs485_config = 5;
+  
+  // 透传配置
+  TransparentConfig transparent_config = 6;
+  
+  // 串口状态
+  SerialPortStatus status = 7;
+  
+  // 串口信息
+  SerialPortInfo port_info = 8;
+}
+
+// 串口参数
+message SerialParameters {
+  // 波特率
+  int32 baud_rate = 1;
+  
+  // 数据位
+  int32 data_bits = 2;
+  
+  // 停止位
+  int32 stop_bits = 3;
+  
+  // 校验位
+  Parity parity = 4;
+  
+  // 流控制
+  FlowControl flow_control = 5;
+}
+
+// 串口模式
+enum SerialMode {
+  SERIAL_MODE_UNSPECIFIED = 0;
+  SERIAL_MODE_RS232 = 1;
+  SERIAL_MODE_RS485 = 2;
+  SERIAL_MODE_RS422 = 3;
+}
+
+// 校验位
+enum Parity {
+  PARITY_UNSPECIFIED = 0;
+  PARITY_NONE = 1;
+  PARITY_ODD = 2;
+  PARITY_EVEN = 3;
+  PARITY_MARK = 4;
+  PARITY_SPACE = 5;
+}
+
+// 流控制
+enum FlowControl {
+  FLOW_CONTROL_UNSPECIFIED = 0;
+  FLOW_CONTROL_NONE = 1;
+  FLOW_CONTROL_HARDWARE = 2;
+  FLOW_CONTROL_SOFTWARE = 3;
+}
+
+// RS485 配置
+message RS485Config {
+  // 是否启用 RS485 模式
+  bool enabled = 1;
+  
+  // 发送时 RTS 信号状态
+  bool rts_on_send = 2;
+  
+  // 发送后 RTS 信号状态
+  bool rts_after_send = 3;
+  
+  // RTS 延迟时间（微秒）
+  int32 rts_delay = 4;
+  
+  // 发送前 RTS 延迟（微秒）
+  int32 delay_rts_before_send = 5;
+  
+  // 发送后 RTS 延迟（微秒）
+  int32 delay_rts_after_send = 6;
+  
+  // 接收超时（毫秒）
+  int32 receive_timeout = 7;
+  
+  // 是否启用回环模式
+  bool loopback_enabled = 8;
+}
+
+// 透传配置
+message TransparentConfig {
+  // 是否启用透传功能
+  bool enabled = 1;
+  
+  // 透传协议
+  TransparentProtocol protocol = 2;
+  
+  // 监听地址
+  string listen_address = 3;
+  
+  // 监听端口
+  int32 listen_port = 4;
+  
+  // 缓冲区大小（字节）
+  int32 buffer_size = 5;
+  
+  // 连接超时（秒）
+  int32 timeout = 6;
+  
+  // 最大连接数
+  int32 max_connections = 7;
+  
+  // 是否启用数据日志
+  bool data_logging = 8;
+}
+
+// 透传协议
+enum TransparentProtocol {
+  TRANSPARENT_PROTOCOL_UNSPECIFIED = 0;
+  TRANSPARENT_PROTOCOL_TCP = 1;
+  TRANSPARENT_PROTOCOL_UDP = 2;
+  TRANSPARENT_PROTOCOL_WEBSOCKET = 3;
+}
+
+// 串口状态
+enum SerialPortStatus {
+  SERIAL_PORT_STATUS_UNSPECIFIED = 0;
+  SERIAL_PORT_STATUS_AVAILABLE = 1;
+  SERIAL_PORT_STATUS_IN_USE = 2;
+  SERIAL_PORT_STATUS_ERROR = 3;
+  SERIAL_PORT_STATUS_NOT_FOUND = 4;
+}
+
+// 串口信息
+message SerialPortInfo {
+  // 设备路径
+  string device_path = 1;
+  
+  // 设备描述
+  string description = 2;
+  
+  // 制造商
+  string manufacturer = 3;
+  
+  // 产品 ID
+  string product_id = 4;
+  
+  // 供应商 ID
+  string vendor_id = 5;
+  
+  // 序列号
+  string serial_number = 6;
+  
+  // 设备类型
+  string device_type = 7;
+  
+  // 是否为 USB 设备
+  bool is_usb = 8;
+  
+  // 支持的波特率
+  repeated int32 supported_baud_rates = 9;
+}
+
+// ========== 透传状态相关 ==========
+
+message GetTransparentStatusRequest {
+  string device_path = 1;
+}
+
+message TransparentStatusResponse {
+  repeated TransparentStatus statuses = 1;
+  ResponseStatus status = 2;
+}
+
+message ControlTransparentRequest {
+  string device_path = 1;
+  TransparentAction action = 2;
+}
+
+message ControlTransparentResponse {
+  ResponseStatus status = 1;
+}
+
+// 透传状态
+message TransparentStatus {
+  string device_path = 1;
+  bool is_running = 2;
+  int32 active_connections = 3;
+  int64 bytes_sent = 4;
+  int64 bytes_received = 5;
+  google.protobuf.Timestamp start_time = 6;
+  repeated string connected_clients = 7;
+}
+
+// 透传操作
+enum TransparentAction {
+  TRANSPARENT_ACTION_UNSPECIFIED = 0;
+  TRANSPARENT_ACTION_START = 1;
+  TRANSPARENT_ACTION_STOP = 2;
+  TRANSPARENT_ACTION_RESTART = 3;
+}
+
+// ========== Udev 配置相关 ==========
+
+message GetUdevConfigRequest {}
+
+message UdevConfigResponse {
+  UdevConfig config = 1;
+  ResponseStatus status = 2;
+}
+
+message UpdateUdevConfigRequest {
+  UdevConfig config = 1;
+}
+
+message UpdateUdevConfigResponse {
+  ResponseStatus status = 1;
+}
+
+// Udev 配置
+message UdevConfig {
+  repeated UdevRule rules = 1;
+}
+
+// Udev 规则
+message UdevRule {
+  // 规则名称
+  string name = 1;
+  
+  // 子系统
+  string subsystem = 2;
+  
+  // 设备属性匹配
+  map<string, string> attributes = 3;
+  
+  // 符号链接名称
+  string symlink = 4;
+  
+  // 设备权限
+  DevicePermissions permissions = 5;
+  
+  // 规则描述
+  string description = 6;
+  
+  // 是否启用
+  bool enabled = 7;
+  
+  // 规则优先级
+  int32 priority = 8;
+}
+
+// 设备权限
+message DevicePermissions {
+  // 文件模式（八进制）
+  string mode = 1;
+  
+  // 所有者
+  string owner = 2;
+  
+  // 组
+  string group = 3;
+}
+
+// ========== 硬件扫描相关 ==========
+
+message ScanHardwareDevicesRequest {
+  // 扫描类型
+  ScanType scan_type = 1;
+  
+  // 是否包含详细信息
+  bool include_details = 2;
+}
+
+message ScanHardwareDevicesResponse {
+  repeated HardwareDevice devices = 1;
+  ResponseStatus status = 2;
+}
+
+// 扫描类型
+enum ScanType {
+  SCAN_TYPE_UNSPECIFIED = 0;
+  SCAN_TYPE_ALL = 1;
+  SCAN_TYPE_SERIAL = 2;
+  SCAN_TYPE_USB = 3;
+  SCAN_TYPE_PCI = 4;
+}
+
+// 硬件设备
+message HardwareDevice {
+  // 设备路径
+  string device_path = 1;
+  
+  // 设备名称
+  string name = 2;
+  
+  // 设备类型
+  DeviceType device_type = 3;
+  
+  // 设备描述
+  string description = 4;
+  
+  // 制造商
+  string manufacturer = 5;
+  
+  // 产品信息
+  string product = 6;
+  
+  // 设备 ID
+  DeviceID device_id = 7;
+  
+  // 设备状态
+  DeviceStatus device_status = 8;
+  
+  // 设备属性
+  map<string, string> properties = 9;
+  
+  // 子设备
+  repeated HardwareDevice children = 10;
+}
+
+// 设备类型
+enum DeviceType {
+  DEVICE_TYPE_UNSPECIFIED = 0;
+  DEVICE_TYPE_SERIAL = 1;
+  DEVICE_TYPE_USB = 2;
+  DEVICE_TYPE_PCI = 3;
+  DEVICE_TYPE_NETWORK = 4;
+  DEVICE_TYPE_STORAGE = 5;
+  DEVICE_TYPE_OTHER = 6;
+}
+
+// 设备 ID
+message DeviceID {
+  // 供应商 ID
+  string vendor_id = 1;
+  
+  // 产品 ID
+  string product_id = 2;
+  
+  // 设备版本
+  string version = 3;
+  
+  // 序列号
+  string serial_number = 4;
+}
+
+// 设备状态
+enum DeviceStatus {
+  DEVICE_STATUS_UNSPECIFIED = 0;
+  DEVICE_STATUS_ACTIVE = 1;
+  DEVICE_STATUS_INACTIVE = 2;
+  DEVICE_STATUS_ERROR = 3;
+  DEVICE_STATUS_UNKNOWN = 4;
+}
+
+// ========== 通用响应 ==========
+
+// 响应状态
+message ResponseStatus {
+  // 状态码
+  int32 code = 1;
+  
+  // 状态消息
+  string message = 2;
+  
+  // 详细信息
+  map<string, string> details = 3;
+  
+  // 时间戳
+  google.protobuf.Timestamp timestamp = 4;
+}

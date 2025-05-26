@@ -105,4 +105,4 @@ func (ifd *Ifupdown) ReloadIfy(ctx context.Context) error {
 		return fmt.Errorf("failed to restart networking: %v, output: %s", err, output)
 	}
 	return nil
-} 
+}
