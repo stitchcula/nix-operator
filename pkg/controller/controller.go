@@ -27,11 +27,16 @@ type Controller struct {
 	osInfo    OSInfo
 }
 
+type ReconcileResult struct {
+	Effective *config.ResourceConfig
+	Status    *config.ResourceStatus
+}
+
 type Handler interface {
 	// Match 检查是否支持该操作系统
 	Match(osInfo OSInfo) bool
 	// Reconcile 处理配置
-	Reconcile(ctx context.Context, config *config.ResourceConfig) error
+	Reconcile(ctx context.Context, config *config.ResourceConfig) (*ReconcileResult, error)
 }
 
 var handlerFactories = make(map[string][]Handler)
@@ -196,13 +201,18 @@ func (c *Controller) reconcile() {
 		// 查找对应的处理器
 		handler, exists := c.handlers[cfg.Kind]
 		if !exists {
-			log.Printf("No handler found for type: %s (kind: %s)", handlerType, cfg.Kind)
+			log.Printf("No handler found for kind: %s", cfg.Kind)
 			return nil
 		}
 
 		// 执行调谐
-		if err := handler.Reconcile(ctx, cfg); err != nil {
+		result, err := handler.Reconcile(ctx, cfg)
+		if err != nil {
 			log.Printf("Reconciliation error for %s: %v", path, err)
+		}
+
+		if result.Status != nil {
+			log.Printf("Reconciliation status for %s: %s", path, result.Status.Phase)
 		}
 
 		return nil
