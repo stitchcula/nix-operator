@@ -13,8 +13,17 @@ import (
 	"go.xbrother.com/nix-operator/pkg/utils"
 )
 
+type Config struct {
+	Hosts []hostEntry `json:"hosts"`
+}
+
+type HostEntry struct {
+	IP        string   `json:"ip"`
+	Hostnames []string `json:"hostnames"`
+}
+
 func init() {
-	controller.RegisterHandler("hosts", &LinuxHostsHandler{})
+	controller.RegisterHandler("HostsConfiguration", &LinuxHostsHandler{})
 }
 
 type LinuxHostsHandler struct{}
@@ -28,7 +37,7 @@ func (h *LinuxHostsHandler) Match(osInfo controller.OSInfo) bool {
 	return osInfo.KernelName == "Linux"
 }
 
-func (h *LinuxHostsHandler) Reconcile(ctx context.Context, cfg *config.SystemConfiguration) error {
+func (h *LinuxHostsHandler) Reconcile(ctx context.Context, cfg *config.ResourceConfig) error {
 	// 读取现有的 hosts 文件
 	currentEntries, err := h.getCurrentHosts()
 	if err != nil {

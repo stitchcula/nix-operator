@@ -2,13 +2,14 @@ package controller
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"log"
 	"os"
+	"path/filepath"
 	"strings"
 
 	"go.xbrother.com/nix-operator/pkg/config"
-	"gopkg.in/yaml.v3"
 
 	"github.com/fsnotify/fsnotify"
 )
@@ -21,16 +22,16 @@ type OSInfo struct {
 }
 
 type Controller struct {
-	configPath string
-	handlers   map[string]Handler // key 是处理器类型
-	osInfo     OSInfo
+	configDir string
+	handlers  map[string]Handler // key 是处理器类型
+	osInfo    OSInfo
 }
 
 type Handler interface {
 	// Match 检查是否支持该操作系统
 	Match(osInfo OSInfo) bool
 	// Reconcile 处理配置
-	Reconcile(ctx context.Context, config *config.SystemConfiguration) error
+	Reconcile(ctx context.Context, config *config.ResourceConfig) error
 }
 
 var handlerFactories = make(map[string][]Handler)
@@ -40,7 +41,7 @@ func RegisterHandler(typeName string, handler Handler) {
 	handlerFactories[typeName] = append(handlerFactories[typeName], handler)
 }
 
-func NewController(configPath string) (*Controller, error) {
+func NewController(configDir string) (*Controller, error) {
 	osInfo, err := getOSInfo()
 	if err != nil {
 		return nil, fmt.Errorf("failed to get OS info: %v", err)
@@ -51,18 +52,16 @@ func NewController(configPath string) (*Controller, error) {
 	// 为每种类型选择合适的处理器
 	requiredTypes := []string{
 		"network",
-		"dns",
 		"hosts",
-		"firewall",
-		"system",
-		"ntp",
+		"time",
 		"serial",
 		"udev",
 	}
 	for _, typeName := range requiredTypes {
 		typedHandlers := handlerFactories[typeName]
 		if len(typedHandlers) == 0 {
-			return nil, fmt.Errorf("no handler registered for type: %s", typeName)
+			log.Printf("Warning: no handler registered for type: %s", typeName)
+			continue
 		}
 
 		// 查找匹配的处理器
@@ -76,15 +75,15 @@ func NewController(configPath string) (*Controller, error) {
 		}
 
 		if !matched {
-			return nil, fmt.Errorf("no compatible handler found for type %s on OS %s %s",
+			log.Printf("Warning: no compatible handler found for type %s on OS %s %s",
 				typeName, osInfo.ID, osInfo.VersionID)
 		}
 	}
 
 	return &Controller{
-		configPath: configPath,
-		handlers:   handlers,
-		osInfo:     osInfo,
+		configDir: configDir,
+		handlers:  handlers,
+		osInfo:    osInfo,
 	}, nil
 }
 
@@ -141,7 +140,22 @@ func (c *Controller) Run() error {
 		}
 	}()
 
-	err = watcher.Add(c.configPath)
+	// 监控配置目录
+	err = watcher.Add(c.configDir)
+	if err != nil {
+		return err
+	}
+
+	// 递归监控子目录
+	err = filepath.Walk(c.configDir, func(path string, info os.FileInfo, err error) error {
+		if err != nil {
+			return err
+		}
+		if info.IsDir() {
+			return watcher.Add(path)
+		}
+		return nil
+	})
 	if err != nil {
 		return err
 	}
@@ -155,27 +169,58 @@ func (c *Controller) Run() error {
 
 func (c *Controller) reconcile() {
 	ctx := context.Background()
-	config, err := loadConfig(c.configPath)
-	if err != nil {
-		log.Printf("Error loading config: %v", err)
-		return
-	}
 
-	for _, handler := range c.handlers {
-		if err := handler.Reconcile(ctx, config); err != nil {
-			log.Printf("Reconciliation error: %v", err)
+	// 扫描配置目录中的所有配置文件
+	err := filepath.Walk(c.configDir, func(path string, info os.FileInfo, err error) error {
+		if err != nil {
+			return err
 		}
+
+		// 跳过目录和非YAML/JSON文件
+		if info.IsDir() {
+			return nil
+		}
+
+		ext := filepath.Ext(path)
+		if ext != ".json" {
+			return nil
+		}
+
+		// 加载并处理配置文件
+		cfg, err := loadConfigFile(path)
+		if err != nil {
+			log.Printf("Error loading config file %s: %v", path, err)
+			return nil
+		}
+
+		// 查找对应的处理器
+		handler, exists := c.handlers[cfg.Kind]
+		if !exists {
+			log.Printf("No handler found for type: %s (kind: %s)", handlerType, cfg.Kind)
+			return nil
+		}
+
+		// 执行调谐
+		if err := handler.Reconcile(ctx, cfg); err != nil {
+			log.Printf("Reconciliation error for %s: %v", path, err)
+		}
+
+		return nil
+	})
+
+	if err != nil {
+		log.Printf("Error walking config directory: %v", err)
 	}
 }
 
-func loadConfig(path string) (*config.SystemConfiguration, error) {
+func loadConfigFile(path string) (*config.ResourceConfig, error) {
 	data, err := os.ReadFile(path)
 	if err != nil {
 		return nil, err
 	}
 
-	var cfg config.SystemConfiguration
-	if err := yaml.Unmarshal(data, &cfg); err != nil {
+	var cfg config.ResourceConfig
+	if err := json.Unmarshal(data, &cfg); err != nil {
 		return nil, err
 	}
 

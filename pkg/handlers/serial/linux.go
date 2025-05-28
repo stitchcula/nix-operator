@@ -10,10 +10,40 @@ import (
 	"go.xbrother.com/nix-operator/pkg/controller"
 )
 
+type Config struct {
+	Device      string             `json:"device"`
+	DisplayName string             `json:"displayName"`
+	BaudRate    int                `json:"baudRate"`
+	DataBits    int                `json:"dataBits"`
+	StopBits    int                `json:"stopBits"`
+	Parity      string             `json:"parity"`
+	Mode        string             `json:"mode"`                  // "rs232" 或 "rs485"
+	RS485       *RS485Config       `json:"rs485,omitempty"`       // RS485 特定配置
+	Transparent *TransparentConfig `json:"transparent,omitempty"` // 透传配置
+}
+
+type RS485Config struct {
+	Enabled            bool `json:"enabled"`            // 启用 RS485 模式
+	RTSOnSend          bool `json:"rtsOnSend"`          // 发送时 RTS 信号状态
+	RTSAfterSend       bool `json:"rtsAfterSend"`       // 发送后 RTS 信号状态
+	RTSDelay           int  `json:"rtsDelay"`           // RTS 延迟时间（微秒）
+	DelayRTSBeforeSend int  `json:"delayRTSBeforeSend"` // 发送前 RTS 延迟（微秒）
+	DelayRTSAfterSend  int  `json:"delayRTSAfterSend"`  // 发送后 RTS 延迟（微秒）
+	ReceiveTimeout     int  `json:"receiveTimeout"`     // 接收超时（毫秒）
+}
+
+type TransparentConfig struct {
+	Enabled    bool   `json:"enabled"`    // 启用透传功能
+	Protocol   string `json:"protocol"`   // 透传协议 "tcp" 或 "udp"
+	ListenAddr string `json:"listenAddr"` // 监听地址，如 "0.0.0.0:8080"
+	BufferSize int    `json:"bufferSize"` // 缓冲区大小（字节）
+	Timeout    int    `json:"timeout"`    // 连接超时（秒）
+}
+
 func init() {
-	controller.RegisterHandler("serial", &LinuxSerialHandler{modeSwitcher: &LightingAModeSwitcher{}})
-	controller.RegisterHandler("serial", &LinuxSerialHandler{modeSwitcher: &LightingBModeSwitcher{}})
-	controller.RegisterHandler("serial", &LinuxSerialHandler{modeSwitcher: &RainbowBModeSwitcher{}})
+	controller.RegisterHandler("SerialConfiguration", &LinuxSerialHandler{modeSwitcher: &LightingAModeSwitcher{}})
+	controller.RegisterHandler("SerialConfiguration", &LinuxSerialHandler{modeSwitcher: &LightingBModeSwitcher{}})
+	controller.RegisterHandler("SerialConfiguration", &LinuxSerialHandler{modeSwitcher: &RainbowBModeSwitcher{}})
 }
 
 type LinuxSerialHandler struct {

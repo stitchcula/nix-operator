@@ -17,4 +17,4 @@ type INetworkManager interface {
 func isServiceActive(ctx context.Context, service string) bool {
 	cmd := exec.CommandContext(ctx, "systemctl", "is-active", service)
 	return cmd.Run() == nil
-} 
+}

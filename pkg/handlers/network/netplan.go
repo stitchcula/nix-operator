@@ -15,6 +15,28 @@ import (
 
 type Netplan struct{}
 
+// NetplanConfig 表示netplan配置结构
+type NetplanConfig struct {
+	Network NetplanNetwork `yaml:"network"`
+}
+
+type NetplanNetwork struct {
+	Version   int                         `yaml:"version"`
+	Ethernets map[string]NetplanInterface `yaml:"ethernets"`
+}
+
+type NetplanInterface struct {
+	MTU         int                 `yaml:"mtu,omitempty"`
+	Addresses   []string            `yaml:"addresses,omitempty"`
+	Gateway4    string              `yaml:"gateway4,omitempty"`
+	Gateway6    string              `yaml:"gateway6,omitempty"`
+	Nameservers *NetplanNameservers `yaml:"nameservers,omitempty"`
+}
+
+type NetplanNameservers struct {
+	Addresses []string `yaml:"addresses"`
+}
+
 func (np *Netplan) IsInstall(ctx context.Context) bool {
 	_, err := os.Stat("/usr/sbin/netplan")
 	return err == nil
@@ -60,45 +82,59 @@ func (np *Netplan) findConfig(iface config.Interface) (string, error) {
 	return fmt.Sprintf("/etc/netplan/99-%s.yaml", iface.Name), nil
 }
 
+func (np *Netplan) buildInterfaceConfig(iface config.Interface) NetplanInterface {
+	ifaceConfig := NetplanInterface{
+		MTU: iface.MTU,
+	}
+
+	// 配置地址
+	var addresses []string
+	if iface.IPAddress != "" {
+		addresses = append(addresses, iface.IPAddress)
+	}
+	if iface.IPv6Address != "" {
+		addresses = append(addresses, iface.IPv6Address)
+	}
+	if len(addresses) > 0 {
+		ifaceConfig.Addresses = addresses
+	}
+
+	// 配置网关
+	if iface.Gateway != "" {
+		ifaceConfig.Gateway4 = iface.Gateway
+	}
+	if iface.IPv6Gateway != "" {
+		ifaceConfig.Gateway6 = iface.IPv6Gateway
+	}
+
+	// 配置DNS nameservers
+	if len(iface.Nameservers) > 0 {
+		ifaceConfig.Nameservers = &NetplanNameservers{
+			Addresses: iface.Nameservers,
+		}
+	}
+
+	return ifaceConfig
+}
+
 func (np *Netplan) Configure(ctx context.Context, iface config.Interface) error {
 	configPath, err := np.findConfig(iface)
 	if err != nil {
 		return err
 	}
 
-	ifaceConfig := map[string]any{
-		"mtu": iface.MTU,
-	}
-
-	// IPv4 配置
-	if iface.IPAddress != "" {
-		ifaceConfig["addresses"] = []string{iface.IPAddress}
-		if iface.Gateway != "" {
-			ifaceConfig["gateway4"] = iface.Gateway
-		}
-	}
-
-	// IPv6 配置
-	if iface.IPv6Address != "" {
-		addresses := ifaceConfig["addresses"].([]string)
-		addresses = append(addresses, iface.IPv6Address)
-		ifaceConfig["addresses"] = addresses
-		if iface.IPv6Gateway != "" {
-			ifaceConfig["gateway6"] = iface.IPv6Gateway
-		}
-	}
-
-	desired := map[string]any{
-		"network": map[string]any{
-			"version": 2,
-			"ethernets": map[string]any{
-				iface.Name: ifaceConfig,
+	// 构建配置结构
+	desired := NetplanConfig{
+		Network: NetplanNetwork{
+			Version: 2,
+			Ethernets: map[string]NetplanInterface{
+				iface.Name: np.buildInterfaceConfig(iface),
 			},
 		},
 	}
 
-	// 读取现有配置
-	var current map[string]any
+	// 读取现有配置进行比较
+	var current NetplanConfig
 	if data, err := os.ReadFile(configPath); err == nil {
 		if err := yaml.Unmarshal(data, &current); err == nil && reflect.DeepEqual(current, desired) {
 			return nil // 配置相同，无需更新
@@ -111,7 +147,10 @@ func (np *Netplan) Configure(ctx context.Context, iface config.Interface) error 
 		return fmt.Errorf("failed to marshal config: %v", err)
 	}
 
-	return utils.AtomicWriteFile(data, configPath, 0644)
+	// 添加注释头
+	configWithHeader := append([]byte(config.CommentHeader), data...)
+
+	return utils.AtomicWriteFile(configWithHeader, configPath, 0644)
 }
 
 func (np *Netplan) ReloadIfy(ctx context.Context) error {

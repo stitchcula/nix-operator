@@ -2,18 +2,24 @@ package network
 
 import (
 	"bufio"
+	"bytes"
 	"context"
 	"fmt"
 	"os"
 	"os/exec"
 	"path/filepath"
 	"strings"
+	"text/template"
+	_ "embed"
 
 	"go.xbrother.com/nix-operator/pkg/config"
 	"go.xbrother.com/nix-operator/pkg/utils"
 )
 
 type Ifupdown struct{}
+
+//go:embed ifupdown.tpl
+var ifupdownTemplate string
 
 func (ifd *Ifupdown) IsInstall(ctx context.Context) bool {
 	_, err := os.Stat("/sbin/ifup")
@@ -63,37 +69,40 @@ func (ifd *Ifupdown) Configure(ctx context.Context, iface config.Interface) erro
 		return err
 	}
 
-	var desired strings.Builder
-	desired.WriteString(config.CommentHeader)
-	desired.WriteString(fmt.Sprintf("auto %s\n", iface.Name))
+	// 创建模板并添加自定义函数
+	tmpl := template.New("ifupdown").Funcs(template.FuncMap{
+		"join": strings.Join,
+	})
 
-	// IPv4 配置
-	if iface.IPAddress != "" {
-		desired.WriteString(fmt.Sprintf("iface %s inet static\n", iface.Name))
-		desired.WriteString(fmt.Sprintf("    address %s\n", iface.IPAddress))
-		if iface.Gateway != "" {
-			desired.WriteString(fmt.Sprintf("    gateway %s\n", iface.Gateway))
-		}
+	tmpl, err = tmpl.Parse(ifupdownTemplate)
+	if err != nil {
+		return fmt.Errorf("failed to parse template: %v", err)
 	}
 
-	// IPv6 配置
-	if iface.IPv6Address != "" {
-		desired.WriteString(fmt.Sprintf("iface %s inet6 static\n", iface.Name))
-		desired.WriteString(fmt.Sprintf("    address %s\n", iface.IPv6Address))
-		if iface.IPv6Gateway != "" {
-			desired.WriteString(fmt.Sprintf("    gateway %s\n", iface.IPv6Gateway))
-		}
+	// 准备模板数据
+	data := struct {
+		CommentHeader string
+		Interface     config.Interface
+	}{
+		CommentHeader: config.CommentHeader,
+		Interface:     iface,
 	}
 
-	desired.WriteString(fmt.Sprintf("    mtu %d\n", iface.MTU))
+	// 渲染模板
+	var buf bytes.Buffer
+	if err := tmpl.Execute(&buf, data); err != nil {
+		return fmt.Errorf("failed to execute template: %v", err)
+	}
+
+	desired := buf.String()
 
 	// 读取现有配置
 	current, err := os.ReadFile(configPath)
-	if err == nil && string(current) == desired.String() {
+	if err == nil && string(current) == desired {
 		return nil // 配置相同，无需更新
 	}
 
-	return utils.AtomicWriteFile([]byte(desired.String()), configPath, 0644)
+	return utils.AtomicWriteFile([]byte(desired), configPath, 0644)
 }
 
 func (ifd *Ifupdown) ReloadIfy(ctx context.Context) error {

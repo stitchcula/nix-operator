@@ -12,8 +12,19 @@ import (
 	"go.xbrother.com/nix-operator/pkg/utils"
 )
 
+type Config struct {
+	Rules []UdevRule `json:"rules"`
+}
+
+type UdevRule struct {
+	Name      string            `json:"name"`
+	Subsystem string            `json:"subsystem"`
+	Attrs     map[string]string `json:"attrs"`
+	Symlink   string            `json:"symlink"`
+}
+
 func init() {
-	controller.RegisterHandler("udev", &LinuxUdevHandler{})
+	controller.RegisterHandler("UdevConfiguration", &LinuxUdevHandler{})
 }
 
 func (f *LinuxUdevHandler) Match(osInfo controller.OSInfo) bool {

@@ -1,8 +1,9 @@
-package ntp
+package time
 
 import (
 	"context"
 	_ "embed"
+	"encoding/json"
 	"fmt"
 	"os"
 	"os/exec"
@@ -14,16 +15,26 @@ import (
 	"go.xbrother.com/nix-operator/pkg/utils"
 )
 
+type TimeSpec struct {
+	Timezone string    `json:"timezone" yaml:"timezone"`
+	NTP      NTPConfig `json:"ntp" yaml:"ntp"`
+}
+
+type NTPConfig struct {
+	Enable  bool     `json:"enable" yaml:"enable"`
+	Servers []string `json:"servers" yaml:"servers"`
+}
+
 //go:embed chrony.conf.tpl
 var chronyConfigTemplate string
 
 func init() {
-	controller.RegisterHandler("ntp", &LinuxNTPHandler{})
+	controller.RegisterHandler("TimeConfiguration", &LinuxTimeHandler{})
 }
 
-type LinuxNTPHandler struct{}
+type LinuxTimeHandler struct{}
 
-func (h *LinuxNTPHandler) Match(osInfo controller.OSInfo) bool {
+func (h *LinuxTimeHandler) Match(osInfo controller.OSInfo) bool {
 	return osInfo.KernelName == "Linux"
 }
 
@@ -31,14 +42,35 @@ type chronyConfig struct {
 	Servers []string
 }
 
-func (h *LinuxNTPHandler) Reconcile(ctx context.Context, cfg *config.SystemConfiguration) error {
-	if !cfg.Spec.System.NTP.Enabled {
+func (h *LinuxTimeHandler) Reconcile(ctx context.Context, cfg *config.ResourceConfig) error {
+	// 解析时间配置
+	var timeSpec TimeSpec
+
+	// 将Spec转换为时间配置
+	specBytes, err := json.Marshal(cfg.Spec)
+	if err != nil {
+		return fmt.Errorf("failed to marshal spec: %v", err)
+	}
+
+	if err := json.Unmarshal(specBytes, &timeSpec); err != nil {
+		return fmt.Errorf("failed to unmarshal time spec: %v", err)
+	}
+
+	// 设置时区
+	if timeSpec.Timezone != "" {
+		if err := h.setTimezone(ctx, timeSpec.Timezone); err != nil {
+			return fmt.Errorf("failed to set timezone: %v", err)
+		}
+	}
+
+	// 配置NTP
+	if !timeSpec.NTP.Enable {
 		return nil
 	}
 
 	// 准备模板数据
 	templateData := chronyConfig{
-		Servers: cfg.Spec.System.NTP.Servers,
+		Servers: timeSpec.NTP.Servers,
 	}
 
 	// 解析模板
@@ -77,5 +109,15 @@ func (h *LinuxNTPHandler) Reconcile(ctx context.Context, cfg *config.SystemConfi
 		return fmt.Errorf("failed to reload chronyd config: %v, output: %s", err, output)
 	}
 
+	return nil
+}
+
+func (h *LinuxTimeHandler) setTimezone(ctx context.Context, timezone string) error {
+	// 使用timedatectl设置时区
+	cmd := exec.CommandContext(ctx, "timedatectl", "set-timezone", timezone)
+	output, err := cmd.CombinedOutput()
+	if err != nil {
+		return fmt.Errorf("failed to set timezone: %v, output: %s", err, output)
+	}
 	return nil
 }

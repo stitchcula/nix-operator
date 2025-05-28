@@ -1,6 +1,6 @@
 syntax = "proto3";
 
-package system.v1;
+package xtopus.api.system.v1;
 
 option go_package = "go.xbrother.com/nix-operator/api/system/v1";
 
@@ -8,25 +8,21 @@ import "google/protobuf/timestamp.proto";
 
 // 硬件配置服务
 service HardwareConfigService {
+  // 获取所有串口配置
+  rpc ListSerialConfigs(ListSerialConfigsRequest) returns (ListSerialConfigsResponse);
   // 获取串口配置
   rpc GetSerialConfig(GetSerialConfigRequest) returns (SerialConfigResponse);
   // 更新串口配置
   rpc UpdateSerialConfig(UpdateSerialConfigRequest) returns (UpdateSerialConfigResponse);
-  // 测试串口连接
-  rpc TestSerialConnection(TestSerialConnectionRequest) returns (TestSerialConnectionResponse);
-  
+  // 更新串口模式配置
+  rpc UpdateSerialModeConfig(UpdateSerialModeConfigRequest) returns (UpdateSerialModeConfigResponse);
+
+  // 获取所有 Udev 配置
+  rpc ListUdevConfigs(ListUdevConfigsRequest) returns (ListUdevConfigsResponse);
   // 获取 Udev 配置
   rpc GetUdevConfig(GetUdevConfigRequest) returns (UdevConfigResponse);
   // 更新 Udev 配置
   rpc UpdateUdevConfig(UpdateUdevConfigRequest) returns (UpdateUdevConfigResponse);
-  
-  // 扫描硬件设备
-  rpc ScanHardwareDevices(ScanHardwareDevicesRequest) returns (ScanHardwareDevicesResponse);
-  
-  // 获取串口透传状态
-  rpc GetTransparentStatus(GetTransparentStatusRequest) returns (TransparentStatusResponse);
-  // 控制串口透传
-  rpc ControlTransparent(ControlTransparentRequest) returns (ControlTransparentResponse);
 }
 
 // ========== 串口配置相关 ==========
@@ -37,29 +33,16 @@ message GetSerialConfigRequest {
 }
 
 message SerialConfigResponse {
-  repeated SerialPortConfig ports = 1;
-  ResponseStatus status = 2;
+  SerialPortConfig config = 1;
+  SerialPortConfig effective_config = 2;
+  SerialPortInfo port_info = 3;
 }
 
 message UpdateSerialConfigRequest {
-  repeated SerialPortConfig ports = 1;
+  SerialPortConfig config = 1;
 }
 
-message UpdateSerialConfigResponse {
-  ResponseStatus status = 1;
-}
-
-message TestSerialConnectionRequest {
-  string device_path = 1;
-  SerialParameters parameters = 2;
-}
-
-message TestSerialConnectionResponse {
-  bool success = 1;
-  string message = 2;
-  SerialPortInfo port_info = 3;
-  ResponseStatus status = 4;
-}
+message UpdateSerialConfigResponse {}
 
 // 串口配置
 message SerialPortConfig {
@@ -80,12 +63,6 @@ message SerialPortConfig {
   
   // 透传配置
   TransparentConfig transparent_config = 6;
-  
-  // 串口状态
-  SerialPortStatus status = 7;
-  
-  // 串口信息
-  SerialPortInfo port_info = 8;
 }
 
 // 串口参数
@@ -194,15 +171,6 @@ enum TransparentProtocol {
   TRANSPARENT_PROTOCOL_WEBSOCKET = 3;
 }
 
-// 串口状态
-enum SerialPortStatus {
-  SERIAL_PORT_STATUS_UNSPECIFIED = 0;
-  SERIAL_PORT_STATUS_AVAILABLE = 1;
-  SERIAL_PORT_STATUS_IN_USE = 2;
-  SERIAL_PORT_STATUS_ERROR = 3;
-  SERIAL_PORT_STATUS_NOT_FOUND = 4;
-}
-
 // 串口信息
 message SerialPortInfo {
   // 设备路径
@@ -233,6 +201,20 @@ message SerialPortInfo {
   repeated int32 supported_baud_rates = 9;
 }
 
+message SerialPortStatus {
+    // 当前阶段
+    string phase = 1;
+
+    // 原因
+    string reason = 2;
+  
+    // 消息
+    string message = 3;
+  
+    // 最后同步时间
+    google.protobuf.Timestamp last_reconcile_time = 4;
+}
+
 // ========== 透传状态相关 ==========
 
 message GetTransparentStatusRequest {
@@ -241,7 +223,6 @@ message GetTransparentStatusRequest {
 
 message TransparentStatusResponse {
   repeated TransparentStatus statuses = 1;
-  ResponseStatus status = 2;
 }
 
 message ControlTransparentRequest {
@@ -249,9 +230,7 @@ message ControlTransparentRequest {
   TransparentAction action = 2;
 }
 
-message ControlTransparentResponse {
-  ResponseStatus status = 1;
-}
+message ControlTransparentResponse {}
 
 // 透传状态
 message TransparentStatus {
@@ -278,16 +257,13 @@ message GetUdevConfigRequest {}
 
 message UdevConfigResponse {
   UdevConfig config = 1;
-  ResponseStatus status = 2;
 }
 
 message UpdateUdevConfigRequest {
   UdevConfig config = 1;
 }
 
-message UpdateUdevConfigResponse {
-  ResponseStatus status = 1;
-}
+message UpdateUdevConfigResponse {}
 
 // Udev 配置
 message UdevConfig {
@@ -345,7 +321,6 @@ message ScanHardwareDevicesRequest {
 
 message ScanHardwareDevicesResponse {
   repeated HardwareDevice devices = 1;
-  ResponseStatus status = 2;
 }
 
 // 扫描类型
@@ -423,21 +398,4 @@ enum DeviceStatus {
   DEVICE_STATUS_INACTIVE = 2;
   DEVICE_STATUS_ERROR = 3;
   DEVICE_STATUS_UNKNOWN = 4;
-}
-
-// ========== 通用响应 ==========
-
-// 响应状态
-message ResponseStatus {
-  // 状态码
-  int32 code = 1;
-  
-  // 状态消息
-  string message = 2;
-  
-  // 详细信息
-  map<string, string> details = 3;
-  
-  // 时间戳
-  google.protobuf.Timestamp timestamp = 4;
 }
